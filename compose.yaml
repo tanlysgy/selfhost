@@ -1,0 +1,279 @@
+name: selfhost
+
+services:
+  it-tools:
+    image: corentinth/it-tools:latest
+    container_name: sh-it-tools
+    restart: unless-stopped
+    ports: ["8081:80"]
+
+  memos:
+    image: neosmemo/memos:stable
+    container_name: sh-memos
+    restart: unless-stopped
+    volumes: ["./data/memos:/var/opt/memos"]
+    ports: ["5230:5230"]
+
+  uptime-kuma:
+    image: louislam/uptime-kuma:1
+    container_name: sh-uptime-kuma
+    restart: unless-stopped
+    volumes: ["./data/uptime-kuma:/app/data"]
+    ports: ["3301:3001"]
+
+  searxng:
+    image: searxng/searxng:latest
+    container_name: sh-searxng
+    restart: unless-stopped
+    volumes: ["./data/searxng:/etc/searxng"]
+    environment:
+      - SEARXNG_BASE_URL=https://search.sgyyyds.qzz.io/
+      - SEARXNG_SECRET=${SEARXNG_SECRET:-}
+    depends_on: [searxng-valkey]
+    ports: ["8888:8080"]
+
+  searxng-valkey:
+    image: valkey/valkey:8-alpine
+    container_name: sh-searxng-valkey
+    restart: unless-stopped
+    command: ["valkey-server", "--save", "", "--appendonly", "no"]
+    volumes: ["./data/valkey:/data"]
+
+  filebrowser:
+    image: filebrowser/filebrowser:latest
+    container_name: sh-filebrowser
+    restart: unless-stopped
+    volumes:
+      - "./data/filebrowser/srv:/srv"
+      - "./data/filebrowser/db:/database"
+    environment:
+      - FB_BASEURL=/
+    ports: ["8082:80"]
+
+  freshrss:
+    image: freshrss/freshrss:latest
+    container_name: sh-freshrss
+    restart: unless-stopped
+    volumes: ["./data/freshrss:/var/www/FreshRSS/data"]
+    environment:
+      - TZ=Asia/Shanghai
+      - CRON_MIN=1,31
+    ports: ["8083:80"]
+
+  excalidraw:
+    image: excalidraw/excalidraw:latest
+    container_name: sh-excalidraw
+    restart: unless-stopped
+    ports: ["8084:80"]
+
+  navidrome:
+    image: deluan/navidrome:latest
+    container_name: sh-navidrome
+    restart: unless-stopped
+    volumes:
+      - "./data/navidrome:/data"
+      - "./data/music:/music:ro"
+    environment:
+      - ND_SCANSCHEDULE=1h
+    ports: ["4533:4533"]
+
+  ttyd:
+    image: tsl0922/ttyd:latest
+    container_name: sh-ttyd
+    restart: unless-stopped
+    command: ["ttyd", "-p", "7681", "-W", "-c", "${TTYD_USER:-admin}:${TTYD_PASS:-changeme}", "bash", "-l"]
+    ports: ["127.0.0.1:7681:7681"]
+
+  gitea:
+    image: gitea/gitea:1
+    container_name: sh-gitea
+    restart: unless-stopped
+    environment:
+      - USER_UID=1000
+      - USER_GID=1000
+      - GITEA__server__ROOT_URL=https://git.sgyyyds.qzz.io/
+      - GITEA__server__DOMAIN=git.sgyyyds.qzz.io
+      - GITEA__server__SSH_DOMAIN=git.sgyyyds.qzz.io
+      - GITEA__server__PROTOCOL=http
+      - GITEA__database__DB_TYPE=sqlite3
+    volumes:
+      - "./data/gitea:/data"
+      - "/etc/timezone:/etc/timezone:ro"
+      - "/etc/localtime:/etc/localtime:ro"
+    ports: ["3300:3000", "2222:22"]
+
+  homarr:
+    image: ghcr.io/homarr-labs/homarr:latest
+    container_name: sh-homarr
+    restart: unless-stopped
+    volumes:
+      - "./data/homarr/appdata:/appdata"
+    environment:
+      - SECRET_ENCRYPTION_KEY=${HOMARR_SECRET:-}
+    ports: ["7575:7575"]
+
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: sh-n8n
+    restart: unless-stopped
+    environment:
+      - N8N_HOST=flow.sgyyyds.qzz.io
+      - N8N_PROTOCOL=https
+      - WEBHOOK_URL=https://flow.sgyyyds.qzz.io/
+      - GENERIC_TIMEZONE=Asia/Shanghai
+      - N8N_SECURE_COOKIE=true
+    volumes: ["./data/n8n:/home/node/.n8n"]
+    ports: ["5678:5678"]
+
+  stirling-pdf:
+    image: stirlingtools/stirling-pdf:latest
+    container_name: sh-stirling-pdf
+    restart: unless-stopped
+    volumes: ["./data/stirling:/configs"]
+    environment:
+      - DOCKER_ENABLE_SECURITY=false
+      - LANGS=en_GB,zh_CN
+    ports: ["8085:8080"]
+
+  subconverter:
+    image: tindy2013/subconverter:latest
+    container_name: sh-subconverter
+    restart: unless-stopped
+    ports: ["25500:25500"]
+
+  shlink:
+    image: shlinkio/shlink:stable
+    container_name: sh-shlink
+    restart: unless-stopped
+    environment:
+      - DEFAULT_DOMAIN=link.sgyyyds.qzz.io
+      - IS_HTTPS_ENABLED=true
+      - GEOLITE_LICENSE_KEY=
+    volumes: ["./data/shlink:/etc/shlink/data"]
+    ports: ["8086:8080"]
+
+  kanboard:
+    image: kanboard/kanboard:latest
+    container_name: sh-kanboard
+    restart: unless-stopped
+    volumes: ["./data/kanboard:/var/www/app/data"]
+    ports: ["8087:80"]
+
+  radicale:
+    image: tomsquest/docker-radicale:latest
+    container_name: sh-radicale
+    restart: unless-stopped
+    volumes: ["./data/radicale:/data"]
+    ports: ["8088:5232"]
+
+  trilium:
+    image: triliumnext/trilium:latest
+    container_name: sh-trilium
+    restart: unless-stopped
+    volumes: ["./data/trilium:/home/node/trilium-data"]
+    environment:
+      - TRILIUM_DATA_DIR=/home/node/trilium-data
+    ports: ["8089:8080"]
+
+  miniflux:
+    image: miniflux/miniflux:latest
+    container_name: sh-miniflux
+    restart: unless-stopped
+    depends_on: [miniflux-db]
+    environment:
+      - DATABASE_URL=postgres://miniflux:${MINIFLUX_DB_PASS:-miniflux}@miniflux-db/miniflux?sslmode=disable
+      - RUN_MIGRATIONS=1
+      - CREATE_ADMIN=1
+      - ADMIN_USERNAME=${MINIFLUX_USER:-admin}
+      - ADMIN_PASSWORD=${MINIFLUX_PASS:-atlas-miniflux-2026}
+      - BASE_URL=https://miniflux.sgyyyds.qzz.io/
+    ports: ["8092:8080"]
+
+  miniflux-db:
+    image: postgres:16-alpine
+    container_name: sh-miniflux-db
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=miniflux
+      - POSTGRES_PASSWORD=${MINIFLUX_DB_PASS:-miniflux}
+      - POSTGRES_DB=miniflux
+    volumes: ["./data/miniflux-db:/var/lib/postgresql/data"]
+
+  focalboard:
+    image: mattermost/focalboard:latest
+    container_name: sh-focalboard
+    restart: unless-stopped
+    volumes: ["./data/focalboard:/opt/focalboard/data"]
+    ports: ["8091:8000"]
+
+  ddns-go:
+    image: jeessy/ddns-go:latest
+    container_name: sh-ddns-go
+    restart: unless-stopped
+    volumes: ["./data/ddns-go:/root"]
+    ports: ["8093:9876"]
+
+  aria2:
+    image: hurlenko/aria2-ariang:latest
+    container_name: sh-aria2
+    restart: unless-stopped
+    volumes: ["./data/aria2:/aria2/data"]
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - RPC_SECRET=atlas-aria2-2026
+    ports: ["8094:8080"]
+
+  qbittorrent:
+    image: linuxserver/qbittorrent:latest
+    container_name: sh-qbittorrent
+    restart: unless-stopped
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Asia/Shanghai
+      - WEBUI_PORT=8080
+    volumes:
+      - "./data/qbittorrent:/config"
+      - "./data/downloads:/downloads"
+    ports: ["8095:8080", "6881:6881", "6881:6881/udp"]
+
+  syncthing:
+    image: lscr.io/linuxserver/syncthing:latest
+    container_name: sh-syncthing
+    restart: unless-stopped
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Asia/Shanghai
+    volumes:
+      - "./data/syncthing:/config"
+      - "./data/sync:/data"
+    ports: ["8096:8384"]
+
+  vikunja:
+    image: vikunja/vikunja:latest
+    container_name: sh-vikunja
+    restart: unless-stopped
+    environment:
+      - VIKUNJA_SERVICE_PUBLICURL=https://todo.sgyyyds.qzz.io/
+      - VIKUNJA_DATABASE_PATH=/db/vikunja.db
+      - VIKUNJA_DATABASE_TYPE=sqlite
+    volumes:
+      - "./data/vikunja/files:/app/vikunja/files"
+      - "./data/vikunja/db:/db"
+    ports: ["8097:3456"]
+
+  jellyfin:
+    image: jellyfin/jellyfin:latest
+    container_name: sh-jellyfin
+    restart: unless-stopped
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Asia/Shanghai
+    volumes:
+      - "./data/jellyfin/config:/config"
+      - "./data/jellyfin/cache:/cache"
+      - "./data/media:/media"
+    ports: ["8098:8096"]

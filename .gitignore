@@ -1,0 +1,9 @@
+# 运行时数据与密钥,不入库
+data/
+.env
+*.secret
+*.key
+*.pem
+*.log
+.imgbed_secret
+static/gtfobins

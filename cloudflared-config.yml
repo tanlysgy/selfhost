@@ -1,0 +1,57 @@
+tunnel: cf894927-55fc-432d-ab5d-ca51ebe220e6
+credentials-file: /home/sgy/.cloudflared/cf894927-55fc-432d-ab5d-ca51ebe220e6.json
+
+ingress:
+  - hostname: it.sgyyyds.qzz.io
+    service: http://localhost:8081
+  - hostname: memos.sgyyyds.qzz.io
+    service: http://localhost:5230
+  - hostname: status.sgyyyds.qzz.io
+    service: http://localhost:3301
+  - hostname: search.sgyyyds.qzz.io
+    service: http://localhost:8888
+  - hostname: files.sgyyyds.qzz.io
+    service: http://localhost:8082
+  - hostname: rss.sgyyyds.qzz.io
+    service: http://localhost:8083
+  - hostname: board.sgyyyds.qzz.io
+    service: http://localhost:8084
+  - hostname: music.sgyyyds.qzz.io
+    service: http://localhost:4533
+  - hostname: pdf.sgyyyds.qzz.io
+    service: http://localhost:8085
+  - hostname: dash.sgyyyds.qzz.io
+    service: http://localhost:7575
+  - hostname: term.sgyyyds.qzz.io
+    service: http://localhost:7681
+  - hostname: git.sgyyyds.qzz.io
+    service: http://localhost:3300
+  - hostname: flow.sgyyyds.qzz.io
+    service: http://localhost:5678
+  - hostname: sub.sgyyyds.qzz.io
+    service: http://localhost:25500
+  - hostname: link.sgyyyds.qzz.io
+    service: http://localhost:8086
+  - hostname: board2.sgyyyds.qzz.io
+    service: http://localhost:8087
+  - hostname: cal.sgyyyds.qzz.io
+    service: http://localhost:8088
+  - hostname: notes.sgyyyds.qzz.io
+    service: http://localhost:8089
+  - hostname: feed.sgyyyds.qzz.io
+    service: http://localhost:8092
+  - hostname: kanban.sgyyyds.qzz.io
+    service: http://localhost:8091
+  - hostname: ddns.sgyyyds.qzz.io
+    service: http://localhost:8093
+  - hostname: aria.sgyyyds.qzz.io
+    service: http://localhost:8094
+  - hostname: bt.sgyyyds.qzz.io
+    service: http://localhost:8095
+  - hostname: sync.sgyyyds.qzz.io
+    service: http://localhost:8096
+  - hostname: todo.sgyyyds.qzz.io
+    service: http://localhost:8097
+  - hostname: media.sgyyyds.qzz.io
+    service: http://localhost:8098
+  - service: http_status:404
