@@ -1,0 +1,13 @@
+{
+  "name": "atlas-edge-kit",
+  "main": "src/index.js",
+  "compatibility_date": "2026-01-01",
+  "kv_namespaces": [
+    { "binding": "ATLAS_KV", "id": "b9a5a660ec1d4a5e9a60335a00255315" }
+  ],
+  "routes": [
+    { "pattern": "short.sgyyyds.qzz.io", "custom_domain": true },
+    { "pattern": "paste.sgyyyds.qzz.io", "custom_domain": true },
+    { "pattern": "nodes.sgyyyds.qzz.io", "custom_domain": true }
+  ]
+}
