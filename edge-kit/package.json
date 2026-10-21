@@ -1,0 +1,8 @@
+{
+  "name": "atlas-edge-kit",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "qrcode-generator": "^2.0.4"
+  }
+}

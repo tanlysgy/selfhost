@@ -8,6 +8,10 @@
   "routes": [
     { "pattern": "short.sgyyyds.qzz.io", "custom_domain": true },
     { "pattern": "paste.sgyyyds.qzz.io", "custom_domain": true },
-    { "pattern": "nodes.sgyyyds.qzz.io", "custom_domain": true }
+    { "pattern": "nodes.sgyyyds.qzz.io", "custom_domain": true },
+    { "pattern": "qr.sgyyyds.qzz.io", "custom_domain": true },
+    { "pattern": "px.sgyyyds.qzz.io", "custom_domain": true },
+    { "pattern": "ip.sgyyyds.qzz.io", "custom_domain": true },
+    { "pattern": "check.sgyyyds.qzz.io", "custom_domain": true }
   ]
 }
