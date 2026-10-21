@@ -12,6 +12,9 @@
     { "pattern": "qr.sgyyyds.qzz.io", "custom_domain": true },
     { "pattern": "px.sgyyyds.qzz.io", "custom_domain": true },
     { "pattern": "ip.sgyyyds.qzz.io", "custom_domain": true },
-    { "pattern": "check.sgyyyds.qzz.io", "custom_domain": true }
+    { "pattern": "check.sgyyyds.qzz.io", "custom_domain": true },
+    { "pattern": "tools.sgyyyds.qzz.io", "custom_domain": true },
+    { "pattern": "meta.sgyyyds.qzz.io", "custom_domain": true },
+    { "pattern": "geo.sgyyyds.qzz.io", "custom_domain": true }
   ]
 }

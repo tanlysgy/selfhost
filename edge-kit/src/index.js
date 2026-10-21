@@ -7,6 +7,9 @@ const HOST_QR = 'qr.sgyyyds.qzz.io'
 const HOST_PROXY = 'px.sgyyyds.qzz.io'
 const HOST_IP = 'ip.sgyyyds.qzz.io'
 const HOST_CHECK = 'check.sgyyyds.qzz.io'
+const HOST_GEO = 'geo.sgyyyds.qzz.io'
+const HOST_META = 'meta.sgyyyds.qzz.io'
+const HOST_TOOLS = 'tools.sgyyyds.qzz.io'
 
 const enc = new TextEncoder()
 
@@ -317,6 +320,111 @@ async function resolveMx(domain) {
   }
 }
 
+const GEO_CACHE_PREFIX = 'geo:v1:'
+const GEO_TTL_MS = 7 * 24 * 60 * 60 * 1000
+const GEO_UA = 'FOSS-Atlas-Geo/1.0 (+https://atlas.sgyyyds.qzz.io)'
+
+async function geocode(env, { q, lat, lon, limit = 5, lang = 'zh-CN,en', reverse = false }) {
+  const key = GEO_CACHE_PREFIX + (reverse ? `r:${lat},${lon},${lang}` : `f:${q},${limit},${lang}`)
+  const cached = await env.ATLAS_KV.get(key)
+  if (cached) {
+    const parsed = JSON.parse(cached)
+    if (Date.now() - parsed.at < GEO_TTL_MS) return { ...parsed, cached: true }
+  }
+  const upstream = reverse
+    ? `https://nominatim.openstreetmap.org/reverse?lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}&format=jsonv2&accept-language=${encodeURIComponent(lang)}`
+    : `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=jsonv2&limit=${limit}&accept-language=${encodeURIComponent(lang)}`
+  try {
+    const r = await fetch(upstream, { headers: { 'user-agent': GEO_UA, accept: 'application/json' } })
+    if (!r.ok) return { ok: false, status: r.status }
+    const raw = await r.json()
+    const data = reverse
+      ? (raw && raw.lat ? { display_name: raw.display_name, lat: raw.lat, lon: raw.lon, type: raw.type, category: raw.category, address: raw.address || null } : null)
+      : (Array.isArray(raw) ? raw.map((x) => ({ display_name: x.display_name, lat: x.lat, lon: x.lon, type: x.type, category: x.category })) : [])
+    const payload = { at: Date.now(), data }
+    await env.ATLAS_KV.put(key, JSON.stringify(payload), { expirationTtl: Math.floor(GEO_TTL_MS / 1000) })
+    return { ok: true, ...payload, cached: false }
+  } catch {
+    return { ok: false, status: 0 }
+  }
+}
+
+const META_CACHE_PREFIX = 'meta:v1:'
+const META_TTL_MS = 24 * 60 * 60 * 1000
+const META_MAX_BYTES = 400 * 1024
+
+async function fetchMeta(env, target) {
+  const key = META_CACHE_PREFIX + target
+  const cached = await env.ATLAS_KV.get(key)
+  if (cached) {
+    const parsed = JSON.parse(cached)
+    if (Date.now() - parsed.at < META_TTL_MS) return { ...parsed, cached: true }
+  }
+  try {
+    const r = await fetch(target, { headers: { 'user-agent': GEO_UA, accept: 'text/html,application/xhtml+xml' }, redirect: 'follow' })
+    const ct = r.headers.get('content-type') || ''
+    const buf = (await r.arrayBuffer()).slice(0, META_MAX_BYTES)
+    const html = new TextDecoder().decode(buf)
+    const pick = (re) => { const m = html.match(re); return m ? m[1].trim().slice(0, 500) : null }
+    const data = {
+      url: r.url,
+      status: r.status,
+      content_type: ct,
+      bytes: buf.byteLength,
+      title: pick(/<title[^>]*>([\s\S]*?)<\/title>/i) || pick(/<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']*)["']/i),
+      description: pick(/<meta[^>]+name=["']description["'][^>]+content=["']([^"']*)["']/i)
+        || pick(/<meta[^>]+property=["']og:description["'][^>]+content=["']([^"']*)["']/i),
+      image: pick(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']*)["']/i),
+      site_name: pick(/<meta[^>]+property=["']og:site_name["'][^>]+content=["']([^"']*)["']/i),
+      favicon: pick(/<link[^>]+rel=["'][^"']*icon[^"']*["'][^>]+href=["']([^"']*)["']/i),
+    }
+    const payload = { at: Date.now(), data }
+    await env.ATLAS_KV.put(key, JSON.stringify(payload), { expirationTtl: Math.floor(META_TTL_MS / 1000) })
+    return { ok: true, ...payload, cached: false }
+  } catch {
+    return { ok: false, status: 0 }
+  }
+}
+
+const TOOLBOX_ALGS = ['sha-1', 'sha-256', 'sha-384', 'sha-512']
+
+const TOOLBOX_ALIASES = { sha1: 'sha-1', sha256: 'sha-256', sha384: 'sha-384', sha512: 'sha-512', md5: null }
+
+async function toolboxHash(alg, data) {
+  const key = String(alg || 'sha256').toLowerCase()
+  const resolved = TOOLBOX_ALIASES[key] !== undefined ? TOOLBOX_ALIASES[key] : (TOOLBOX_ALGS.includes(key) ? key : null)
+  if (!resolved) {
+    const hint = key === 'md5' ? 'md5 不在 WebCrypto 支持范围内,请用 sha-1/sha-256/sha-384/sha-512' : `可选:${TOOLBOX_ALGS.join(', ')}`
+    return { error: `不支持的算法,${hint}` }
+  }
+  const name = resolved
+  const digest = await crypto.subtle.digest(name.toUpperCase(), new TextEncoder().encode(data))
+  const bytes = new Uint8Array(digest)
+  let hex = ''
+  for (const b of bytes) hex += b.toString(16).padStart(2, '0')
+  let bin = ''
+  for (const b of bytes) bin += String.fromCharCode(b)
+  return { alg: name, input_bytes: new TextEncoder().encode(data).length, hex, base64: btoa(bin) }
+}
+
+function toolboxEncode(mode, data) {
+  try {
+    if (mode === 'base64') return { mode, input: data, output: btoa(unescape(encodeURIComponent(data))) }
+    if (mode === 'base64-decode') return { mode, input: data, output: decodeURIComponent(escape(atob(data.trim()))) }
+    if (mode === 'url') return { mode, input: data, output: encodeURIComponent(data) }
+    if (mode === 'url-decode') return { mode, input: data, output: decodeURIComponent(data) }
+    if (mode === 'hex') {
+      const bytes = new TextEncoder().encode(data)
+      let hex = ''
+      for (const b of bytes) hex += b.toString(16).padStart(2, '0')
+      return { mode, input: data, output: hex }
+    }
+    return { error: 'mode 可选:base64, base64-decode, url, url-decode, hex' }
+  } catch (e) {
+    return { error: `解码失败:${e.message}` }
+  }
+}
+
 const COUNTRY_NAMES = { CN: 'China', HK: 'Hong Kong', TW: 'Taiwan', JP: 'Japan', KR: 'South Korea', SG: 'Singapore', US: 'United States', GB: 'United Kingdom', DE: 'Germany', FR: 'France', NL: 'Netherlands', CA: 'Canada', AU: 'Australia', RU: 'Russia', IN: 'India' }
 
     if (host === HOST_PASTE) {
@@ -540,6 +648,123 @@ async function go(){
   o.innerHTML = '一次性邮箱: <b style="color:'+(j.disposable?'#e06c75':'#35d07f')+'">'+(j.disposable?'是':'否')+'</b>'+
     '<br>格式有效: '+(j.format_valid?'是':'否')+'<br>MX 记录: '+(j.has_mx ? j.mx.join(', ') : '无')+
     '<br>黑名单规模: '+j.blocklist_size
+}
+</script>`), { headers: { 'content-type': 'text/html;charset=utf-8' } })
+    }
+
+    if (host === HOST_GEO) {
+      const q = (url.searchParams.get('q') || url.searchParams.get('query') || '').trim()
+      const lat = url.searchParams.get('lat')
+      const lon = url.searchParams.get('lon')
+      const limit = Math.min(10, Math.max(1, Number(url.searchParams.get('limit')) || 5))
+      const lang = (url.searchParams.get('lang') || url.searchParams.get('accept-language') || 'zh-CN,en').slice(0, 40)
+      const reverse = url.pathname === '/reverse' || (lat && lon)
+      if (url.pathname === '/json' || url.pathname === '/api/geo' || url.pathname === '/search' || url.pathname === '/reverse') {
+        if (reverse) {
+          if (!lat || !lon) return json({ error: '缺少 lat 与 lon 参数' }, 400)
+          const view = await geocode(env, { reverse: true, lat, lon, lang })
+          if (!view.ok) return json({ error: '上游地理编码服务暂不可用', upstream: view.status }, 502)
+          return json({ at: view.at, cached: view.cached, source: 'OpenStreetMap Nominatim', result: view.data }, 200, { 'access-control-allow-origin': '*' })
+        }
+        if (!q) return json({ error: '缺少 q 参数' }, 400)
+        const view = await geocode(env, { q, limit, lang })
+        if (!view.ok) return json({ error: '上游地理编码服务暂不可用', upstream: view.status }, 502)
+        return json({ at: view.at, cached: view.cached, source: 'OpenStreetMap Nominatim', count: (view.data || []).length, results: view.data }, 200, { 'access-control-allow-origin': '*' })
+      }
+      return new Response(PAGE('Atlas Geo', `
+<h1>Atlas Geo</h1>
+<p class="sub">地理编码 / 逆地理编码 · 跑在 Cloudflare 边缘 + KV 缓存 · 替代 nominatim 公共实例</p>
+<label>地名 → 坐标</label>
+<input id="q" placeholder="上海外滩">
+<button onclick="fwd()">正向查询</button>
+<label>坐标 → 地名</label>
+<input id="c" placeholder="31.2397,121.4900">
+<button onclick="rev()">反向查询</button>
+<div class="out" id="o" hidden></div>
+<label>API</label>
+<input value="https://${HOST_GEO}/json?q=Shanghai&limit=5" readonly onclick="this.select()">
+<script>
+async function fwd(){
+  const q=document.getElementById('q').value.trim(); if(!q) return
+  show(await (await fetch('/json?q='+encodeURIComponent(q))).json())
+}
+async function rev(){
+  const c=document.getElementById('c').value.split(','); if(c.length<2) return
+  show(await (await fetch('/reverse?lat='+encodeURIComponent(c[0].trim())+'&lon='+encodeURIComponent(c[1].trim()))).json())
+}
+function show(j){
+  const o=document.getElementById('o'); o.hidden=false
+  if(j.error){o.textContent='错误: '+j.error; return}
+  const rows = j.results || (j.result ? [j.result] : [])
+  o.innerHTML = rows.map(r=>'<b>'+r.display_name+'</b><br><code>'+r.lat+','+r.lon+'</code>'+(r.type?(' · '+r.type):'')).join('<hr style="border:0;border-top:1px solid #1e2427;margin:8px 0">') || '无结果'
+}
+</script>`), { headers: { 'content-type': 'text/html;charset=utf-8' } })
+    }
+
+    if (host === HOST_META) {
+      const target = (url.searchParams.get('url') || '').trim()
+      if (url.pathname === '/json' || url.pathname === '/api/meta') {
+        if (!/^https?:\/\//i.test(target)) return json({ error: '需要 http(s):// 开头的 url 参数' }, 400)
+        const view = await fetchMeta(env, target)
+        if (!view.ok) return json({ error: '抓取失败', upstream: view.status }, 502)
+        return json({ at: view.at, cached: view.cached, ...view.data }, 200, { 'access-control-allow-origin': '*' })
+      }
+      return new Response(PAGE('Atlas Meta', `
+<h1>Atlas Meta</h1>
+<p class="sub">链接元数据 / OpenGraph 抓取 · 跑在 Cloudflare 边缘 + KV 缓存 · 自己解析,不依赖第三方解析服务</p>
+<label>页面 URL</label>
+<input id="u" placeholder="https://github.com/cloudflare/workers-sdk">
+<button onclick="go()">抓取</button>
+<div class="out" id="o" hidden></div>
+<label>API</label>
+<input value="https://${HOST_META}/json?url=https://example.com" readonly onclick="this.select()">
+<script>
+async function go(){
+  const u=document.getElementById('u').value.trim(); if(!u) return
+  const j=await (await fetch('/json?url='+encodeURIComponent(u))).json()
+  const o=document.getElementById('o'); o.hidden=false
+  if(j.error){o.textContent='错误: '+j.error; return}
+  o.innerHTML='<b>'+(j.title||'(无标题)')+'</b><br>'+(j.description||'')+'<br>'+
+    (j.image?('<img alt="og" style="max-width:100%;border-radius:6px;margin-top:8px" src="'+j.image+'">'):'')+
+    '<br><code>HTTP '+j.status+' · '+(j.content_type||'-')+' · '+j.bytes+' bytes</code>'
+}
+</script>`), { headers: { 'content-type': 'text/html;charset=utf-8' } })
+    }
+
+    if (host === HOST_TOOLS) {
+      if (url.pathname === '/api/hash') {
+        const alg = (url.searchParams.get('alg') || 'sha256').toLowerCase()
+        const data = url.searchParams.get('data') ?? ''
+        const out = await toolboxHash(alg, data)
+        return json(out, out.error ? 400 : 200, { 'access-control-allow-origin': '*' })
+      }
+      if (url.pathname === '/api/uuid') {
+        const n = Math.min(64, Math.max(1, Number(url.searchParams.get('count')) || 1))
+        return json({ uuids: Array.from({ length: n }, () => crypto.randomUUID()) }, 200, { 'access-control-allow-origin': '*' })
+      }
+      if (url.pathname === '/api/encode') {
+        const mode = (url.searchParams.get('mode') || 'base64').toLowerCase()
+        const data = url.searchParams.get('data') ?? ''
+        const out = toolboxEncode(mode, data)
+        return json(out, out.error ? 400 : 200, { 'access-control-allow-origin': '*' })
+      }
+      return new Response(PAGE('Atlas Tools', `
+<h1>Atlas Tools</h1>
+<p class="sub">哈希 / UUID / 编解码 · 跑在 Cloudflare 边缘 · 文本不出浏览器以外的第三方</p>
+<label>哈希(sha256 / sha1 / md5 风格由浏览器做,此处仅 sha-1/sha-256/sha-384/sha-512)</label>
+<input id="h" placeholder="要计算哈希的文本">
+<button onclick="go()">计算 SHA-256</button>
+<label>UUID v4</label>
+<input value="https://${HOST_TOOLS}/api/uuid?count=3" readonly onclick="this.select()">
+<label>Base64 / URL 编解码</label>
+<input value="https://${HOST_TOOLS}/api/encode?mode=base64&data=hello" readonly onclick="this.select()">
+<div class="out" id="o" hidden></div>
+<script>
+async function go(){
+  const d=document.getElementById('h').value; if(!d) return
+  const j=await (await fetch('/api/hash?alg=sha256&data='+encodeURIComponent(d))).json()
+  const o=document.getElementById('o'); o.hidden=false
+  o.innerHTML = j.error ? ('错误: '+j.error) : ('<code>'+j.alg+': '+j.hex+'</code><br><code>base64: '+j.base64+'</code>')
 }
 </script>`), { headers: { 'content-type': 'text/html;charset=utf-8' } })
     }
