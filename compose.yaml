@@ -75,6 +75,8 @@ services:
       - "./data/music:/music:ro"
     environment:
       - ND_SCANSCHEDULE=1h
+      # 2026-10-23: the first-admin page is closed once an admin exists; keep signup off so it can never reopen.
+      - ND_ENABLESIGNUP=false
     ports: ["4533:4533"]
 
   ttyd:
@@ -96,6 +98,9 @@ services:
       - GITEA__server__SSH_DOMAIN=git.sgyyyds.qzz.io
       - GITEA__server__PROTOCOL=http
       - GITEA__database__DB_TYPE=sqlite3
+      - GITEA__security__INSTALL_LOCK=true
+      - GITEA__service__DISABLE_REGISTRATION=true
+      - GITEA__service__REQUIRE_SIGNIN_VIEW=true
     volumes:
       - "./data/gitea:/data"
       - "/etc/timezone:/etc/timezone:ro"
@@ -148,6 +153,7 @@ services:
     environment:
       - DEFAULT_DOMAIN=link.sgyyyds.qzz.io
       - IS_HTTPS_ENABLED=true
+      # Empty key => no geolocation; Shlink logs a warning on boot. Set a MaxMind license key to enable it.
       - GEOLITE_LICENSE_KEY=
     volumes: ["./data/shlink:/etc/shlink/data"]
     ports: ["8086:8080"]
@@ -181,11 +187,11 @@ services:
     restart: unless-stopped
     depends_on: [miniflux-db]
     environment:
-      - DATABASE_URL=postgres://miniflux:${MINIFLUX_DB_PASS:-miniflux}@miniflux-db/miniflux?sslmode=disable
+      - DATABASE_URL=postgres://miniflux:${MINIFLUX_DB_PASS:?set MINIFLUX_DB_PASS in .env}@miniflux-db/miniflux?sslmode=disable
       - RUN_MIGRATIONS=1
       - CREATE_ADMIN=1
       - ADMIN_USERNAME=${MINIFLUX_USER:-admin}
-      - ADMIN_PASSWORD=${MINIFLUX_PASS:-atlas-miniflux-2026}
+      - ADMIN_PASSWORD=${MINIFLUX_PASS:?set MINIFLUX_PASS in .env}
       - BASE_URL=https://miniflux.sgyyyds.qzz.io/
     ports: ["8092:8080"]
 
@@ -195,7 +201,7 @@ services:
     restart: unless-stopped
     environment:
       - POSTGRES_USER=miniflux
-      - POSTGRES_PASSWORD=${MINIFLUX_DB_PASS:-miniflux}
+      - POSTGRES_PASSWORD=${MINIFLUX_DB_PASS:?set MINIFLUX_DB_PASS in .env}
       - POSTGRES_DB=miniflux
     volumes: ["./data/miniflux-db:/var/lib/postgresql/data"]
 
@@ -217,11 +223,23 @@ services:
     image: hurlenko/aria2-ariang:latest
     container_name: sh-aria2
     restart: unless-stopped
-    volumes: ["./data/aria2:/aria2/data"]
+    # The image keeps aria2.conf in an anonymous named volume and re-copies its own default
+    # every time the container is recreated. That default has no trailing newline, so the
+    # RPC_SECRET start.sh appends gets glued onto the bt-tracker line and aria2 ends up
+    # running with *no* rpc-secret at all (verified: unauthenticated addUri worked). The conf
+    # is therefore bound from ./data/aria2-conf (gitignored), seeded once from aria2/conf/aria2.conf.example,
+    # start.sh rewrites that bound conf with the secret, which is why it must not be a tracked path.
+    # No `command:` override here: the image CMD is --conf-path=/aria2/conf/aria2.conf, and replacing
+    # it leaves aria2c with no conf and no download URLs ("Specify at least one URL").
+    volumes:
+      - "./data/aria2:/aria2/data"
+      - "./data/aria2-conf:/aria2/conf"
     environment:
       - PUID=1000
       - PGID=1000
-      - RPC_SECRET=atlas-aria2-2026
+      - TZ=Asia/Shanghai
+      - RPC_SECRET=${ARIA2_RPC_SECRET:?set ARIA2_RPC_SECRET in .env}
+      - EMBED_RPC_SECRET=1
     ports: ["8094:8080"]
 
   qbittorrent:
@@ -257,6 +275,10 @@ services:
     restart: unless-stopped
     environment:
       - VIKUNJA_SERVICE_PUBLICURL=https://todo.sgyyyds.qzz.io/
+      # 2026-10-23: an anonymous visitor could register an account on the public hostname.
+      # This is the key this build honours — with it false, POST /api/v1/register itself 404s.
+      # (VIKUNJA_AUTH_LOCAL_REGISTRATION_ENABLED, the newer spelling, does nothing in 2.7.0.)
+      - VIKUNJA_SERVICE_ENABLEREGISTRATION=false
       - VIKUNJA_DATABASE_PATH=/db/vikunja.db
       - VIKUNJA_DATABASE_TYPE=sqlite
     volumes:
