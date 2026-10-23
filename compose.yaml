@@ -211,6 +211,14 @@ services:
     image: mattermost/focalboard:latest
     container_name: sh-focalboard
     restart: unless-stopped
+    # 2026-10-24: this image reads no auth env vars at all — nothing we put here would
+    # change who can log in. The owner account (see FOCALBOARD_ADMIN_USER/PASS in .env) and
+    # the signup token both live in data/focalboard/focalboard.db, so the DB file IS the
+    # credential store; keep it out of world-readable hands and back it up before edits.
+    # Signup is only closed because a user already exists: POST /api/v2/register without a
+    # token 401s ("no sign-up token and user(s) already exist"). Anyone holding the DB's
+    # signup_token can still create an account, so rotate it (admin session -> POST
+    # /api/v2/teams/0/regenerate_signup_token) whenever it may have leaked.
     volumes: ["./data/focalboard:/opt/focalboard/data"]
     ports: ["8091:8000"]
 
