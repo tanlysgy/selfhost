@@ -28,7 +28,7 @@ services:
     volumes: ["./data/searxng:/etc/searxng"]
     environment:
       - SEARXNG_BASE_URL=https://search.sgyyyds.qzz.io/
-      - SEARXNG_SECRET=${SEARXNG_SECRET:-}
+      - SEARXNG_SECRET=${SEARXNG_SECRET:?set SEARXNG_SECRET in .env}
     depends_on: [searxng-valkey]
     ports: ["8888:8080"]
 
@@ -83,7 +83,9 @@ services:
     image: tsl0922/ttyd:latest
     container_name: sh-ttyd
     restart: unless-stopped
-    command: ["ttyd", "-p", "7681", "-W", "-c", "${TTYD_USER:-admin}:${TTYD_PASS:-changeme}", "bash", "-l"]
+    # 2026-10-23: ttyd is a writable bash shell, and the tunnel does expose it (term.* -> localhost:7681),
+    # so basic auth is the only door. `:?` keeps it from ever starting with the old "admin:changeme" default.
+    command: ["ttyd", "-p", "7681", "-W", "-c", "${TTYD_USER:?set TTYD_USER in .env}:${TTYD_PASS:?set TTYD_PASS in .env}", "bash", "-l"]
     ports: ["127.0.0.1:7681:7681"]
 
   gitea:
@@ -114,7 +116,7 @@ services:
     volumes:
       - "./data/homarr/appdata:/appdata"
     environment:
-      - SECRET_ENCRYPTION_KEY=${HOMARR_SECRET:-}
+      - SECRET_ENCRYPTION_KEY=${HOMARR_SECRET:?set HOMARR_SECRET in .env}
     ports: ["7575:7575"]
 
   n8n:
