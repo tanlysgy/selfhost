@@ -54,4 +54,6 @@ ingress:
     service: http://localhost:8097
   - hostname: media.sgyyyds.qzz.io
     service: http://localhost:8098
+  - hostname: joplin.sgyyyds.qzz.io
+    service: http://localhost:8099
   - service: http_status:404

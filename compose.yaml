@@ -309,3 +309,29 @@ services:
       - "./data/jellyfin/cache:/cache"
       - "./data/media:/media"
     ports: ["8098:8096"]
+
+  joplin:
+    image: joplin/server:latest
+    container_name: sh-joplin
+    restart: unless-stopped
+    depends_on: [joplin-db]
+    environment:
+      - APP_BASE_URL=https://joplin.sgyyyds.qzz.io
+      - APP_PORT=22300
+      - DB_CLIENT=pg
+      - POSTGRES_HOST=joplin-db
+      - POSTGRES_PORT=5432
+      - POSTGRES_DATABASE=joplin
+      - POSTGRES_USER=joplin
+      - POSTGRES_PASSWORD=${JOPLIN_DB_PASS:?set JOPLIN_DB_PASS in .env}
+    ports: ["8099:22300"]
+
+  joplin-db:
+    image: postgres:16-alpine
+    container_name: sh-joplin-db
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=joplin
+      - POSTGRES_PASSWORD=${JOPLIN_DB_PASS:?set JOPLIN_DB_PASS in .env}
+      - POSTGRES_DB=joplin
+    volumes: ["./data/joplin-db:/var/lib/postgresql/data"]
